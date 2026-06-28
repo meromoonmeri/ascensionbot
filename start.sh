@@ -1,5 +1,8 @@
 #!/bin/sh
-echo "🔄 Pushing database schema..."
+set -e
+
+echo "🔄 Push du schéma en base..."
 bunx prisma db push --skip-generate
-echo "✅ Schema pushed. Starting bot..."
-bun index.ts
+
+echo "✅ Schéma poussé. Démarrage du bot..."
+bun src/index.ts

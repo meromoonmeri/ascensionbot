@@ -2,23 +2,18 @@ FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Install SQLite and certificates (for Discord API)
-RUN apk add --no-cache sqlite ca-certificates
+COPY package.json bun.lock* ./
+RUN bun install --frozen-lockfile || bun install
 
-# Copy source
-COPY package.json bun.lock schema.prisma prisma.ts index.ts start.sh tsconfig.json ./
-COPY prisma/ ./prisma/
+COPY prisma ./prisma/
+COPY src ./src/
+COPY tsconfig.json ./
 
-# Install dependencies
-RUN bun install
+RUN bun run postinstall
 
-# Generate Prisma client
-RUN bunx prisma generate
-
-# Create persistent data dir
+# Créer le dossier data pour SQLite
 RUN mkdir -p /data
 
-# Default DB path
-ENV DATABASE_URL="file:/data/bot.db"
+EXPOSE 3000
 
-CMD ["sh", "start.sh"]
+CMD ["bun", "run", "db:push", "&&", "bun", "src/index.ts"]
