@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AUTH — NextAuth models
+   ═══════════════════════════════════════════════════════════════ */
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  discordId     String?   @unique
+  username      String?
+  discriminator String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  profile  Profile?
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PROFILE — Character sheet data
+   ═══════════════════════════════════════════════════════════════ */
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Character identity
+  characterName   String?
+  characterTitle  String?   // Custom title e.g. "Seigneur des Abysses"
+  race            String?   // Race ID from races.ts
+  rank            String    @default("F")
+  description     String?   // Short bio
+  backstory       String?   // Extended lore
+
+  // Visual customization
+  bannerColor     String    @default("#1a1a2e") // Fallback gradient color
+  bannerUrl       String?   // Custom uploaded banner
+  avatarUrl       String?   // Custom uploaded avatar (overrides Discord)
+
+  // Discord sync
+  discordRoles    String?   // JSON array of Discord role IDs
+
+  // Currency
+  ether           Int       @default(1000)
+
+  // Metadata
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  inventory InventoryItem[]
+  transactions Transaction[]
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHOP — Decorative items for profile customization
+   ═══════════════════════════════════════════════════════════════ */
+
+model ShopItem {
+  id          String   @id @default(cuid())
+  name        String
+  nameJp      String?
+  description String
+  price       Int            // Cost in Ether
+  type        String         // "banner" | "frame" | "badge" | "background" | "effect" | "title_style"
+  rarity      String         @default("common") // "common" | "rare" | "epic" | "legendary"
+  imageUrl    String?        // Preview image
+  config      String?        // JSON — visual properties (colors, gradients, etc.)
+  active      Boolean  @default(true)
+  maxStock    Int?           // null = unlimited
+  totalSold   Int      @default(0)
+
+  purchases InventoryItem[]
+
+  @@index([type])
+  @@index([rarity])
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INVENTORY — Items owned by players
+   ═══════════════════════════════════════════════════════════════ */
+
+model InventoryItem {
+  id          String    @id @default(cuid())
+  userId      String
+  profile     Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        ShopItem  @relation(fields: [itemId], references: [id])
+  equipped    Boolean   @default(false)
+  slot        String?   // "banner" | "frame" | "badge1" | "badge2" | "badge3" | "background" | "effect"
+  purchasedAt DateTime  @default(now())
+
+  @@unique([userId, itemId])
+  @@index([userId])
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TRANSACTIONS — Ether ledger
+   ═══════════════════════════════════════════════════════════════ */
+
+model Transaction {
+  id        String   @id @default(cuid())
+  userId    String
+  profile   Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "purchase" | "reward" | "admin_grant" | "admin_remove"
+  amount    Int      // Positive = gained, Negative = spent
+  itemId    String?  // Reference to shop item if purchase
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
